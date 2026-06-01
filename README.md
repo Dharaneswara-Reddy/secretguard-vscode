@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/Dharaneswara-Reddy/secretguard-vscode/main/assets/icon.png" width="100" height="100" alt="SecretGuard Icon" />
+<img src="https://raw.githubusercontent.com/Dharaneswara-Reddy/secretguard-vscode/main/images/icon.png" width="100" height="100" alt="SecretGuard Icon" />
 
 # SecretGuard
 
-<img src="images/Bug_detected.png" alt="SecretGuard detecting secrets in VS Code" width="80%" />
+<img src="https://raw.githubusercontent.com/Dharaneswara-Reddy/secretguard-vscode/main/images/Bug_detected.png" alt="SecretGuard detecting secrets in VS Code" width="80%" />
 
 **Real-time secret & API key detection for VS Code — before you commit, before it's too late.**
 
-[![Version](https://img.shields.io/badge/version-1.0.1-blue?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=secretguard.secretguard-git-protect)
+[![Version](https://img.shields.io/badge/version-1.0.3-blue?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=secretguard.secretguard-git-protect)
 [![Tests](https://img.shields.io/badge/tests-43%20passing-brightgreen?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](./LICENSE)
 [![Publisher](https://img.shields.io/badge/publisher-secretguard-blueviolet?style=flat-square)](https://marketplace.visualstudio.com/publishers/secretguard)
