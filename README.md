@@ -1,403 +1,210 @@
 # 🛡️ SecretGuard — Git Secret Scanner
 
-> **Production-grade VSCode extension that detects and blocks secrets, API keys, and credentials before they enter your git history.**
+> Detects hardcoded API keys, passwords, and secrets in your code **in real time** — before you accidentally commit them.
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://marketplace.visualstudio.com/items?itemName=secretguard.secretguard-git-protect)
-[![VSCode Engine](https://img.shields.io/badge/vscode-%5E1.85.0-blueviolet)](https://code.visualstudio.com/)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue)](https://marketplace.visualstudio.com/items?itemName=secretguard.secretguard-git-protect)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-43%20passing-brightgreen)](#testing)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org/)
+[![Publisher](https://img.shields.io/badge/publisher-secretguard-blueviolet)](https://marketplace.visualstudio.com/publishers/secretguard)
+[![Tests](https://img.shields.io/badge/tests-43%20passing-brightgreen)](#-testing)
 
 ---
 
-## The Problem SecretGuard Solves
+## 🚨 The Problem
 
-Every year, thousands of developers accidentally commit AWS keys, database passwords, Stripe secrets, and API tokens directly into their codebases. Once a secret is in git history, it is **permanent** — even if you delete the file, the secret lives in every `git clone` forever.
+Every day, thousands of developers accidentally push API keys, database passwords, and secret tokens to GitHub. Once a secret is in git history — **it's permanent**. Even deleting the file doesn't help; anyone who clones the repo can recover it with `git log`.
 
-**SecretGuard intercepts secrets at every layer** — while you type, before you commit, and blocks the commit entirely if a secret is found.
+**SecretGuard stops secrets at 3 layers:**
+- 🔴 **While you type** — real-time red underlines in the editor
+- 🔴 **Before you commit** — git pre-commit hook blocks the commit
+- 🔴 **Across your workspace** — full scan of every file on startup
 
 ---
 
-## 🔐 Security Mechanisms
+## ✨ Features
 
-SecretGuard uses **three independent layers** of protection, working together:
-
-### Layer 1 — Shannon Entropy Analysis
-
-Every potential secret is scored using **Shannon entropy** — a mathematical measure of randomness (bits per character). Real secrets (random tokens) have high entropy. Placeholder values (`YOUR_API_KEY`, `CHANGE_ME`) have low entropy and are filtered out.
-
-```
-Entropy = -Σ p(x) × log₂(p(x))
-```
-
-| String | Entropy | Classification |
+| | Feature | Description |
 |---|---|---|
-| `wJalrXUtnFEMI/K7MDENG` | 4.21 bits/char | 🔴 Real secret |
-| `AKIAIOSFODNN7EXAMPLE` | 3.68 bits/char | ✅ Placeholder — ignored |
-| `YOUR_API_KEY_HERE` | 2.80 bits/char | ✅ Placeholder — ignored |
-| `sk_live_aBcDeFgHiJk` | 4.05 bits/char | 🔴 Real secret |
-| `aaaaaaaaaaaaaaaa` | 0.00 bits/char | ✅ Not a secret |
-
-**Default threshold: 3.5 bits/char** (configurable). This is why SecretGuard doesn't fire on documentation examples or template files.
-
----
-
-### Layer 2 — Regex Pattern Matching (30+ Rules)
-
-Each detection rule uses a carefully crafted regular expression tuned for a specific credential format:
-
-| Rule ID | Secret Type | Pattern | Severity |
-|---|---|---|---|
-| `aws-access-key` | AWS Access Key ID | `AKIA[0-9A-Z]{16}` | 🔴 Error |
-| `aws-secret-key` | AWS Secret Access Key | `[A-Za-z0-9/+=]{40}` near `aws` | 🔴 Error |
-| `github-pat` | GitHub Personal Access Token | `ghp_[A-Za-z0-9]{36}` | 🔴 Error |
-| `github-oauth` | GitHub OAuth Token | `gho_[A-Za-z0-9]{36}` | 🔴 Error |
-| `github-actions` | GitHub Actions Token | `ghs_[A-Za-z0-9]{36}` | 🔴 Error |
-| `stripe-live-key` | Stripe Live Secret Key | `sk_live_[A-Za-z0-9]{24}` | 🔴 Error |
-| `stripe-test-key` | Stripe Test Key | `sk_test_[A-Za-z0-9]{24}` | 🟡 Warning |
-| `google-api-key` | Google API Key | `AIza[0-9A-Za-z_\-]{35}` | 🔴 Error |
-| `private-key-pem` | PEM Private Key | `-----BEGIN.*PRIVATE KEY-----` | 🔴 Error |
-| `ssh-private-key` | OpenSSH Private Key | `-----BEGIN OPENSSH PRIVATE KEY-----` | 🔴 Error |
-| `jwt-token` | JSON Web Token | `eyJ[A-Za-z0-9_\-]{20,}\.eyJ` | 🟡 Warning |
-| `slack-token` | Slack Bot Token | `xoxb-[0-9]{11}-[0-9A-Za-z]{24}` | 🔴 Error |
-| `slack-webhook` | Slack Webhook URL | `hooks.slack.com/services/T.../B.../...` | 🔴 Error |
-| `discord-webhook` | Discord Webhook URL | `discord.com/api/webhooks/...` | 🔴 Error |
-| `openai-key` | OpenAI API Key (classic) | `sk-[A-Za-z0-9]{48}` | 🔴 Error |
-| `openai-key-new` | OpenAI API Key (new) | `sk-proj-[A-Za-z0-9]{48}` | 🔴 Error |
-| `anthropic-key` | Anthropic Claude Key | `sk-ant-[A-Za-z0-9]{40}` | 🔴 Error |
-| `sendgrid-key` | SendGrid API Key | `SG\.[A-Za-z0-9_\-]{22}\.[A-Za-z0-9_\-]{43}` | 🔴 Error |
-| `database-url` | Database Connection String | `(postgres\|mysql\|mongodb)://.*:.*@` | 🔴 Error |
-| `twilio-sid` | Twilio Account SID | `AC[a-z0-9]{32}` | 🔴 Error |
-| `twilio-token` | Twilio Auth Token | near `twilio` | 🔴 Error |
-| `heroku-key` | Heroku API Key | UUID format near `heroku` | 🔴 Error |
-| `generic-secret` | Generic Secret Assignment | `(secret\|password\|token)\s*=\s*["'][^"']{8,}` | 🟡 Warning |
-| (+ 10 more) | … | … | … |
+| 🔴 | **Real-time detection** | Scans as you type with 800ms debounce — no manual action needed |
+| 🔍 | **Red squiggly underlines** | Just like ESLint — secrets highlighted inline in the editor |
+| 📋 | **Sidebar findings panel** | Lists every secret found, grouped by file |
+| 🎯 | **Click to jump** | Click any finding in the sidebar to jump to that exact line |
+| 🛑 | **Commit blocker** | Pre-commit hook prevents `git commit` if secrets are staged |
+| 🧠 | **Shannon entropy** | Distinguishes real secrets from placeholders (`YOUR_KEY_HERE`) |
+| 🛡️ | **Status bar indicator** | Shield icon shows SecretGuard is actively protecting you |
+| 📜 | **History scanner** | Audits your last 500 git commits for leaked secrets |
+| 📊 | **Export reports** | One-click HTML/JSON scan report |
+| 🔧 | **Auto-gitignore** | Adds flagged sensitive files to `.gitignore` automatically |
 
 ---
 
-### Layer 3 — Filename Blocklist (25+ patterns)
+## 🔎 What It Detects
 
-Some files should **never** be committed, regardless of content:
+### By Value Pattern (30+ rules)
 
-| Rule ID | Pattern | Examples |
+```js
+const key = "AKIAIOSFODNN7REALKEY1234"          // ⚠️ AWS Access Key ID
+const token = "ghp_aBcDeFgHiJkLmNoPqRsTuVwXy"  // ⚠️ GitHub PAT
+const sk = "sk_live_aBcDeFgHiJkLmNoPqRsTuVw"   // ⚠️ Stripe Live Key
+const ai = "sk-proj-" + "a".repeat(48)          // ⚠️ OpenAI API Key
+const url = "postgres://admin:p@ssw0rd@db:5432" // ⚠️ Database URL
+```
+
+### By Filename (25+ blocked files)
+
+```
+.env, .env.local, .env.production   → Always flagged
+id_rsa, id_ed25519                  → SSH private keys
+*.pem, *.p12, *.pfx                 → Certificate files
+credentials.json, *service-account* → GCP/AWS credential files
+.vault-token, .netrc, .npmrc        → Auth token files
+```
+
+### Full List of Supported Secret Types
+
+| Secret Type | Pattern | Severity |
 |---|---|---|
-| `env-file` | `.env` | `.env`, `.env.production` |
-| `env-local` | `.env.*` | `.env.local`, `.env.staging` |
-| `pem-key` | `*.pem` | `server.pem`, `cert.pem` |
-| `id-rsa` | `id_rsa` | `~/.ssh/id_rsa` |
-| `id-ed25519` | `id_ed25519` | `~/.ssh/id_ed25519` |
-| `pkcs12` | `*.p12`, `*.pfx` | `keystore.p12` |
-| `credentials-json` | `credentials.json` | Google service account file |
-| `service-account` | `*service-account*.json` | GCP service accounts |
-| `kubeconfig` | `kubeconfig`, `*.kubeconfig` | Kubernetes configs |
-| `vault-token` | `.vault-token` | HashiCorp Vault |
-| `docker-config` | `config.json` in `.docker/` | Docker Hub credentials |
-| `npmrc-auth` | `.npmrc` | Contains `//registry.../:_authToken` |
-| `pypirc` | `.pypirc` | PyPI upload credentials |
-| `netrc` | `.netrc` | FTP/HTTP credentials |
-| (+ 10 more) | … | … |
+| AWS Access Key ID | `AKIA[0-9A-Z]{16}` | 🔴 Error |
+| AWS Secret Access Key | 40-char base64 near `aws` | 🔴 Error |
+| GitHub PAT | `ghp_[A-Za-z0-9]{36}` | 🔴 Error |
+| GitHub OAuth Token | `gho_[A-Za-z0-9]{36}` | 🔴 Error |
+| Stripe Live Secret Key | `sk_live_[A-Za-z0-9]{24}` | 🔴 Error |
+| Stripe Test Key | `sk_test_[A-Za-z0-9]{24}` | 🟡 Warning |
+| Google API Key | `AIza[0-9A-Za-z_-]{35}` | 🔴 Error |
+| OpenAI API Key | `sk-proj-[A-Za-z0-9]{48}` | 🔴 Error |
+| Anthropic Key | `sk-ant-[A-Za-z0-9]{40}` | 🔴 Error |
+| Slack Webhook | `hooks.slack.com/services/...` | 🔴 Error |
+| Discord Webhook | `discord.com/api/webhooks/...` | 🔴 Error |
+| Slack Bot Token | `xoxb-[0-9]{11}-...` | 🔴 Error |
+| Twilio Account SID | `AC[a-z0-9]{32}` | 🔴 Error |
+| SendGrid API Key | `SG.[A-Za-z0-9]{22}.[A-Za-z0-9]{43}` | 🔴 Error |
+| JWT Token | `eyJ...` | 🟡 Warning |
+| PEM Private Key | `-----BEGIN.*PRIVATE KEY-----` | 🔴 Error |
+| SSH Private Key | `-----BEGIN OPENSSH PRIVATE KEY-----` | 🔴 Error |
+| Database URL | `postgres://`, `mysql://`, `mongodb://` with credentials | 🔴 Error |
+| Generic secret assignment | `password = "..."`, `secret = "..."` | 🟡 Warning |
+| High entropy string | Any 20+ char string with H(x) ≥ 3.5 bits/char | 🟡 Warning |
 
 ---
 
-## 🏗️ System Architecture
+## 🖥️ How It Works
+
+### 1. Real-time Squiggly Lines
+
+SecretGuard uses the VS Code Diagnostics API (same system as ESLint) to underline secrets inline:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        SECRETGUARD ARCHITECTURE                         │
-└─────────────────────────────────────────────────────────────────────────┘
-
-  EDITOR LAYER (VSCode Extension — extension.ts)
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │                                                                     │
-  │  onDidChangeTextDocument ──► debounce(800ms) ──► scanCurrentFile   │
-  │  onDidOpenTextDocument   ──────────────────────► scanCurrentFile   │
-  │  onActivation            ──────────────────────► scanWorkspace     │
-  │                                                                     │
-  └──────────────────────────────┬──────────────────────────────────────┘
-                                 │
-                    ┌────────────▼────────────┐
-                    │      ScanCache (LRU)     │  ← Skip unchanged files
-                    │   key: SHA-256(content)  │    (performance guard)
-                    └────────────┬────────────┘
-                                 │ cache miss
-                    ┌────────────▼────────────┐
-                    │    scanner.ts (pure)     │  ← No VSCode deps
-                    │                         │
-                    │  1. scanFilename()       │  ← File rule check
-                    │  2. scanContent()        │  ← Content rules
-                    │     ├─ regex match       │
-                    │     ├─ entropy check     │
-                    │     └─ false positive    │
-                    │        suppression       │
-                    └────────┬────────┬────────┘
-                             │        │
-              ┌──────────────▼──┐  ┌──▼──────────────────┐
-              │  contentRules   │  │    fileRules.ts       │
-              │  (30+ patterns) │  │    (25+ blocklist)    │
-              └──────────────┬──┘  └──┬──────────────────┘
-                             │        │
-                    ┌────────▼────────▼────────┐
-                    │      ScanFinding[]        │
-                    │  { ruleId, severity,      │
-                    │    line, col, match,      │
-                    │    entropy, remediation } │
-                    └──┬────────┬──────┬───────┘
-                       │        │      │
-         ┌─────────────▼──┐  ┌──▼──┐  └──────────────────┐
-         │ DiagnosticsAPI  │  │Sidebar│           StatusBar │
-         │ (red squiggles) │  │TreeView│         (🛡 shield) │
-         └────────────────┘  └───────┘           └─────────┘
-
-  GIT LAYER (pre-commit hook — cli-scanner.ts)
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │                                                                     │
-  │  git commit ──► .git/hooks/pre-commit ──► node cli-scanner.js     │
-  │                                                    │               │
-  │                          ┌─────────────────────────▼─────────────┐ │
-  │                          │  Same scanner.ts engine (reused)       │ │
-  │                          │  Scans only staged files               │ │
-  │                          │  Exit 1 → commit BLOCKED               │ │
-  │                          │  Exit 0 → commit allowed               │ │
-  │                          └───────────────────────────────────────┘ │
-  └─────────────────────────────────────────────────────────────────────┘
+const stripe_key = "sk_live_aBcDeFgHiJkLmNoPqRsTuV";
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                   ⚠ SecretGuard: Stripe Live Secret Key detected
+                     Rotate at: https://dashboard.stripe.com/apikeys
 ```
 
-### Graphviz (Dot) — System Design Diagram
+### 2. Sidebar Findings Panel
 
-```dot
-digraph SecretGuard {
-  rankdir=TB;
-  node [shape=box, style=filled, fontname="Helvetica"];
-  edge [fontname="Helvetica", fontsize=10];
+Click the 🛡️ shield icon in the activity bar to open the findings panel:
 
-  // Input nodes
-  Editor   [label="VSCode Editor\n(file change)", fillcolor="#4A90D9", fontcolor=white];
-  GitCmd   [label="git commit", fillcolor="#F5A623", fontcolor=white];
+```
+SECRETGUARD: FINDINGS
+└── 📄 config.js
+    ├── 🔴 Stripe Live Secret Key        Line 3
+    ├── 🔴 AWS Access Key ID             Line 7
+    └── 🟡 Generic Secret Assignment     Line 12
+└── 📄 .env
+    ├── 🔴 Database URL                  Line 1
+    └── 🔴 GitHub PAT                    Line 4
+```
 
-  // Core engine
-  Cache    [label="LRU Scan Cache\n(SHA-256 key)", fillcolor="#7ED321", fontcolor=white];
-  Scanner  [label="scanner.ts\n(Pure Node.js Engine)", fillcolor="#D0021B", fontcolor=white, shape=ellipse];
+### 3. Commit Blocker (Git Hook)
 
-  // Rule modules
-  Entropy  [label="Shannon Entropy\nentropyCheck.ts", fillcolor="#9B59B6", fontcolor=white];
-  Content  [label="Content Rules\n30+ Regex Patterns", fillcolor="#9B59B6", fontcolor=white];
-  Files    [label="File Rules\n25+ Blocklist", fillcolor="#9B59B6", fontcolor=white];
-  FP       [label="False Positive\nSuppression", fillcolor="#9B59B6", fontcolor=white];
+When you `git commit`, the pre-commit hook runs automatically:
 
-  // Outputs - VSCode
-  Diag     [label="Diagnostics API\n(Red underlines)", fillcolor="#1ABC9C", fontcolor=white];
-  Sidebar  [label="Sidebar TreeView\n(Findings panel)", fillcolor="#1ABC9C", fontcolor=white];
-  Status   [label="Status Bar\n(Shield icon)", fillcolor="#1ABC9C", fontcolor=white];
+```bash
+$ git commit -m "add config"
 
-  // Outputs - Git
-  Hook     [label=".git/hooks/\npre-commit", fillcolor="#F5A623", fontcolor=white];
-  Block    [label="Commit BLOCKED\n(exit 1)", fillcolor="#D0021B", fontcolor=white];
-  Allow    [label="Commit allowed\n(exit 0)", fillcolor="#27AE60", fontcolor=white];
+❌ [SecretGuard] ERROR — Stripe Live Secret Key
+   File: config.js:3
+   Match: sk_live_****VwXy
+   Rotate at: https://dashboard.stripe.com/apikeys
 
-  // Other features
-  History  [label="History Scanner\n(last 500 commits)", fillcolor="#95A5A6"];
-  Report   [label="Report Exporter\n(HTML / JSON)", fillcolor="#95A5A6"];
-  Gitignore [label="Auto-gitignore\nHelper", fillcolor="#95A5A6"];
-
-  // Edges
-  Editor   -> Cache   [label="debounced 800ms"];
-  Cache    -> Scanner [label="cache miss only"];
-  GitCmd   -> Hook;
-  Hook     -> Scanner [label="staged files"];
-
-  Scanner  -> Entropy;
-  Scanner  -> Content;
-  Scanner  -> Files;
-  Scanner  -> FP;
-
-  Entropy  -> Scanner [label="score", style=dashed];
-  Content  -> Scanner [label="matches", style=dashed];
-  Files    -> Scanner [label="blocked", style=dashed];
-  FP       -> Scanner [label="filtered", style=dashed];
-
-  Scanner  -> Diag    [label="findings"];
-  Scanner  -> Sidebar [label="findings"];
-  Scanner  -> Status  [label="health"];
-  Scanner  -> Block   [label="secrets found"];
-  Scanner  -> Allow   [label="clean"];
-
-  Scanner  -> History [style=dashed, label="on demand"];
-  Scanner  -> Report  [style=dashed, label="export"];
-  Scanner  -> Gitignore [style=dashed, label="remediate"];
-}
+❌ Commit BLOCKED. Fix the issues above, then commit again.
 ```
 
 ---
 
 ## 🆚 SecretGuard vs. GitHub Push Protection
 
-| Feature | **SecretGuard** (this extension) | **GitHub Push Protection** |
+| Feature | **SecretGuard** | **GitHub Push Protection** |
 |---|:---:|:---:|
-| **Catches secrets while typing** | ✅ Yes (real-time, 800ms) | ❌ No |
-| **Catches secrets at save** | ✅ Yes (onDidOpen) | ❌ No |
-| **Catches secrets at commit** | ✅ Yes (pre-commit hook) | ❌ No |
-| **Catches secrets at push** | ✅ Yes (scan on push too) | ✅ Yes |
-| **Works offline** | ✅ Fully offline | ❌ Requires GitHub servers |
-| **Works without VSCode** | ❌ Needs VSCode or CLI | ✅ Works from any git client |
-| **Works with all git hosts** | ✅ GitLab, Bitbucket, etc. | ❌ GitHub only |
-| **Custom regex rules** | ✅ Fully extensible | ⚠️ Partial (enterprise only) |
-| **Shows exact line in editor** | ✅ Red underlines | ❌ Only blocks push |
-| **Entropy-based detection** | ✅ Shannon entropy | ⚠️ Unknown internals |
-| **Redacted output** | ✅ Never shows full secret | ✅ Yes |
-| **Auto-gitignore fix** | ✅ One-click | ❌ No |
-| **Git history audit** | ✅ Last 500 commits | ⚠️ On push only |
-| **Export scan report** | ✅ HTML + JSON | ❌ No |
-| **Remediation links** | ✅ Per-secret rotate URLs | ❌ No |
-| **Works in private repos** | ✅ Yes | ✅ Yes (with Advanced Security) |
-| **Works in public repos** | ✅ Yes | ✅ Free |
-| **Free to use** | ✅ MIT open source | ✅ Free for public repos |
-| **Response time** | ✅ Milliseconds (local) | ⚠️ Seconds (network round-trip) |
-| **False positive suppression** | ✅ Entropy + heuristics | ⚠️ Pattern-only |
+| Catches secrets **while typing** | ✅ | ❌ |
+| Catches secrets **at commit** | ✅ | ❌ |
+| Catches secrets **at push** | ✅ | ✅ |
+| Works **offline** | ✅ | ❌ |
+| Works with **all git hosts** | ✅ GitLab, Bitbucket, etc. | ❌ GitHub only |
+| **Custom detection rules** | ✅ | ⚠️ Enterprise only |
+| Shows **exact line** in editor | ✅ | ❌ |
+| **Entropy-based** detection | ✅ | ⚠️ Unknown |
+| **Redacted** output | ✅ | ✅ |
+| **Git history** audit | ✅ Last 500 commits | ⚠️ Push-time only |
+| **Export** scan report | ✅ HTML + JSON | ❌ |
+| **Auto-gitignore** helper | ✅ | ❌ |
+| **Remediation links** per secret | ✅ | ❌ |
+| **Response time** | ✅ Milliseconds (local) | ⚠️ Seconds (network) |
+| **Cost** | ✅ Free / MIT | ✅ Free for public repos |
 
-> **TL;DR:** GitHub Push Protection is your **last line of defense** at the network level. SecretGuard is your **first three lines of defense** — catching secrets before they're even staged.
+> **In short:** GitHub Push Protection is your last line of defense. SecretGuard is your first three.
 
 ---
 
-## 🔄 How the Detection Pipeline Works
+## 🚀 Getting Started
 
-```
-Developer types code
-        │
-        ▼ (800ms debounce)
-┌───────────────────────┐
-│  Is file in cache?    │──YES──► Skip (unchanged)
-└──────────┬────────────┘
-           │ NO
-           ▼
-┌───────────────────────┐
-│ Check filename against│──MATCH──► Finding (file rule)
-│ 25+ blocked patterns  │
-└──────────┬────────────┘
-           │ no match
-           ▼
-┌───────────────────────┐
-│  Run 30+ regex rules  │──NO MATCH──► Clean ✅
-│  against file content │
-└──────────┬────────────┘
-           │ MATCH
-           ▼
-┌───────────────────────┐
-│ Extract matched value │
-│ Compute Shannon H(x)  │
-└──────────┬────────────┘
-           │
-    ┌──────▼──────┐
-    │  H(x) ≥ 3.5?│──NO──► False positive, skip
-    └──────┬──────┘
-           │ YES
-           ▼
-┌───────────────────────┐
-│ Check false positive  │
-│ heuristics:           │
-│ • Contains "example"? │──YES──► Mark as FP, warning only
-│ • Contains "change_me"│
-│ • All same character? │
-│ • Template placeholder│
-└──────────┬────────────┘
-           │ REAL SECRET
-           ▼
-┌───────────────────────────────────────┐
-│  Emit ScanFinding:                    │
-│  {                                    │
-│    ruleId: "aws-access-key",          │
-│    severity: "error",                 │
-│    line: 12, column: 18,              │
-│    matchedValue: "AKIA****LKEY",      │  ← redacted
-│    entropy: 3.84,                     │
-│    remediationUrl: "https://..."      │
-│  }                                    │
-└───────────────────────────────────────┘
+### Install from Marketplace
+1. Open VS Code
+2. Press `Ctrl+Shift+X` to open Extensions
+3. Search **SecretGuard**
+4. Click **Install**
+
+### Install from VSIX (manual)
+```bash
+code --install-extension secretguard-git-protect-1.0.1.vsix
 ```
 
----
-
-## 📁 Project Structure
-
+### Install Git Hook (blocks commits)
+Open the command palette (`Ctrl+Shift+P`) and run:
 ```
-secretguard/
-├── src/
-│   ├── extension.ts          # VSCode activation, 10 commands, event wiring
-│   ├── scanner.ts            # Core detection engine (pure Node.js, no VSCode deps)
-│   ├── cli-scanner.ts        # CLI entry point for git pre-commit hooks
-│   ├── diagnostics.ts        # VSCode Diagnostics API integration (red underlines)
-│   ├── statusBar.ts          # Status bar shield icon manager
-│   ├── sidebarProvider.ts    # TreeView findings panel
-│   ├── hookManager.ts        # Git pre-commit hook install/update
-│   ├── historyScanner.ts     # Git log history auditor (last 500 commits)
-│   ├── reportExporter.ts     # HTML + JSON report generator
-│   ├── gitignoreHelper.ts    # Auto-add flagged files to .gitignore
-│   ├── commitBlocker.ts      # VSCode-level commit prevention
-│   ├── cache.ts              # LRU scan cache (SHA-256 content hashing)
-│   ├── debounce.ts           # Debounce utility (800ms real-time scanning)
-│   ├── remediationLinks.ts   # Per-rule rotation/revocation URLs
-│   └── rules/
-│       ├── index.ts          # Rule registry
-│       ├── contentRules.ts   # 30+ regex patterns with metadata
-│       ├── fileRules.ts      # 25+ filename blocklist
-│       └── entropyCheck.ts   # Shannon entropy calculator
-├── test/
-│   ├── scanner.test.ts       # 30 integration tests
-│   ├── entropy.test.ts       # 13 entropy unit tests
-│   ├── tsconfig.json         # Test-specific TypeScript config (includes @types/jest)
-│   └── fixtures/
-│       ├── clean.js          # File with no secrets (should produce 0 findings)
-│       ├── dirty_aws.js      # AWS key fixture (should produce 2 findings)
-│       ├── dirty_github.js   # GitHub PAT fixture
-│       ├── dirty_env.js      # Stripe + DB URL fixture
-│       └── false_positive.js # Placeholder values (should be suppressed)
-├── scripts/
-│   └── precommit.sh          # Pre-commit hook shell template
-├── dist/                     # esbuild output (gitignored)
-│   ├── extension.js          # 31.5 KB bundled VSCode extension
-│   └── cli-scanner.js        # 12 KB bundled CLI for git hooks
-├── images/
-│   └── icon.png              # 128×128 PNG extension icon
-├── package.json              # Extension manifest + VSCode contribution points
-├── tsconfig.json             # TypeScript config (CommonJS, strict)
-├── esbuild.js                # Build script (both extension + CLI targets)
-├── jest.config.json          # Jest configuration (ts-jest transformer)
-├── secretguard.config.json   # Default user configuration
-├── .vscodeignore             # Files excluded from VSIX package
-├── LICENSE                   # MIT License
-└── README.md                 # This file
+SecretGuard: Install Git Pre-commit Hook
 ```
 
 ---
 
 ## ⚙️ Configuration
 
-```json
-// VSCode settings.json
-{
-  "secretguard.enableRealtime": true,
-  "secretguard.debounceMs": 800,
-  "secretguard.entropyThreshold": 3.5,
-  "secretguard.allowBypass": true,
-  "secretguard.scanOnOpen": true,
-  "secretguard.maxFileSizeKb": 500,
-  "secretguard.excludePatterns": [
-    "**/node_modules/**",
-    "**/.git/**",
-    "**/dist/**",
-    "**/*.min.js"
-  ]
-}
-```
+Open VS Code Settings (`Ctrl+,`) and search `secretguard`:
 
 | Setting | Default | Description |
 |---|---|---|
-| `enableRealtime` | `true` | Scan as you type |
-| `debounceMs` | `800` | Delay before scanning after keystroke |
-| `entropyThreshold` | `3.5` | Minimum entropy to flag (higher = stricter) |
-| `allowBypass` | `true` | Allow committing with `--no-verify` |
-| `scanOnOpen` | `true` | Full workspace scan on activation |
-| `maxFileSizeKb` | `500` | Skip files larger than this |
-| `excludePatterns` | see above | Glob patterns to never scan |
+| `secretguard.enableRealtime` | `true` | Scan as you type |
+| `secretguard.debounceMs` | `800` | Delay (ms) after keystroke before scanning |
+| `secretguard.entropyThreshold` | `3.5` | Entropy cutoff — higher = fewer false positives |
+| `secretguard.scanOnOpen` | `true` | Full workspace scan when extension activates |
+| `secretguard.maxFileSizeKb` | `500` | Skip files larger than this size |
+| `secretguard.excludePatterns` | `node_modules, dist, .git` | Glob patterns to skip |
+
+---
+
+## 🛠️ Commands
+
+Open with `Ctrl+Shift+P` → type `SecretGuard`:
+
+| Command | Description |
+|---|---|
+| `SecretGuard: Scan Entire Workspace` | Scan all files in the workspace |
+| `SecretGuard: Scan Current File` | Scan only the active editor file |
+| `SecretGuard: Scan Git History` | Audit the last 500 commits |
+| `SecretGuard: Show All Findings` | Focus the sidebar panel |
+| `SecretGuard: Export Scan Report` | Save HTML/JSON report to disk |
+| `SecretGuard: Add Flagged Files to .gitignore` | Auto-gitignore sensitive files |
+| `SecretGuard: Clear All Warnings` | Reset all findings |
+| `SecretGuard: Toggle Real-time Scanning` | Enable/disable live scanning |
 
 ---
 
@@ -405,77 +212,96 @@ secretguard/
 
 ```
 Test Suites: 2 passed
-Tests:       43 passed
+Tests:       43 passed ✓
 
-PASS test/entropy.test.ts
-  shannonEntropy()
-    ✓ returns 0 for empty string
-    ✓ returns 0 for single-character strings
-    ✓ real AWS secret key has entropy ≥ 4.0
-    ✓ common words have lower entropy than random tokens
-    ... (7 more)
-  isHighEntropy()
-    ✓ returns true for high-entropy strings
-    ✓ returns false for low-entropy strings
-    ✓ respects custom threshold
-    ... (5 more)
-
-PASS test/scanner.test.ts
-  ✓ Clean file produces zero findings
-  ✓ AWS Access Key ID detected
-  ✓ AWS key severity = error
-  ✓ Remediation URL provided
-  ✓ Matched value is redacted in message
-  ✓ Example placeholder AWS key ignored
-  ✓ GitHub PAT detected
-  ✓ Line number correct
-  ✓ .env flagged by filename
-  ✓ id_rsa flagged by filename
-  ✓ Stripe live key = error
-  ✓ Stripe test key = warning
-  ✓ PostgreSQL URL detected
-  ✓ MongoDB URL detected
-  ✓ PEM private key detected
-  ✓ OpenSSH private key detected
-  ✓ Google API key detected
-  ✓ OpenAI key detected
-  ✓ Anthropic key detected
-  ✓ Slack webhook detected
-  ✓ Discord webhook detected
-  ✓ Placeholder not flagged as error
-  ✓ change_me marked as false positive
-  ✓ Entropy threshold respected
-  ... (19 more)
+Coverage:
+  ✓ AWS key detection + redaction
+  ✓ GitHub PAT detection
+  ✓ Stripe live/test keys
+  ✓ PostgreSQL + MongoDB URLs
+  ✓ PEM / SSH key headers
+  ✓ Google API key
+  ✓ OpenAI + Anthropic keys
+  ✓ Slack + Discord webhooks
+  ✓ Placeholder suppression (false positives)
+  ✓ Custom entropy thresholds
+  ✓ Filename blocklist (.env, id_rsa, etc.)
 ```
+
+---
+
+## 🏗️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Language | TypeScript (strict mode) |
+| Bundler | esbuild (31.7 KB output) |
+| Detection Engine | Regex + Shannon Entropy |
+| VSCode Integration | Diagnostics API, TreeDataProvider, StatusBar |
+| Git Integration | Pre-commit hook (Node.js CLI) |
+| Testing | Jest + ts-jest (43 tests) |
+
+For full architecture documentation, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+
+---
+
+## 🏗️ Local Development
+
+```bash
+# Clone
+git clone https://github.com/Dharaneswara-Reddy/secretguard-vscode.git
+cd secretguard-vscode
+
+# Install dependencies
+npm install
+
+# Build
+npm run build
+
+# Run tests
+npm test
+
+# Press F5 in VS Code to launch Extension Development Host
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! To add a new secret pattern:
+
+1. Fork the repository
+2. Add your rule to `src/rules/contentRules.ts`
+3. Add a test case to `test/scanner.test.ts`
+4. Open a Pull Request
 
 ---
 
 ## 🚦 Known Limitations
 
-| Limitation | Explanation |
+| Limitation | Notes |
 |---|---|
-| No browser/web editor support | Only works inside VS Code desktop |
-| Git hook only blocks, not scans history automatically | History scan is manual (run via command palette) |
-| Binary files not scanned | Only text files are checked |
-| Very obfuscated secrets may pass | Base64-encoded or encrypted secrets won't match patterns |
-| Minified JS skipped | `*.min.js` excluded for performance |
-| Entropy threshold may flag long random variable names | Tune `entropyThreshold` up to reduce |
+| Desktop VS Code only | No browser/web editor support |
+| Text files only | Binary files are skipped |
+| Obfuscated secrets may pass | Base64-encoded secrets won't match patterns |
+| Entropy may flag long random variable names | Raise `entropyThreshold` to reduce false positives |
 
 ---
 
-## 🔗 Resources
+## 🔗 Links
 
-- **Marketplace:** https://marketplace.visualstudio.com/items?itemName=secretguard.secretguard-git-protect
-- **GitHub:** https://github.com/Dharaneswara-Reddy/secretguard-vscode
-- **Issues:** https://github.com/Dharaneswara-Reddy/secretguard-vscode/issues
-- **AWS Key Rotation:** https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html
-- **GitHub Token Revocation:** https://github.com/settings/tokens
-- **Stripe Key Rotation:** https://dashboard.stripe.com/apikeys
+- **Marketplace:** [SecretGuard on VS Marketplace](https://marketplace.visualstudio.com/items?itemName=secretguard.secretguard-git-protect)
+- **GitHub:** [secretguard-vscode](https://github.com/Dharaneswara-Reddy/secretguard-vscode)
+- **Issues:** [Report a bug](https://github.com/Dharaneswara-Reddy/secretguard-vscode/issues)
 
 ---
 
 ## 📄 License
 
-MIT © 2026 Palle Venkata Dharaneswara Reddy
+MIT © 2026 Palle Venkata Dharaneswara Reddy — see [LICENSE](./LICENSE)
 
-See [LICENSE](./LICENSE) for full text.
+---
+
+> ⭐ If SecretGuard saved you from a security breach, give it a star on GitHub and a review on the Marketplace!
+
+**Built with ❤️ to keep developer secrets safe.**
