@@ -1,0 +1,155 @@
+{
+  "name": "secretguard",
+  "displayName": "SecretGuard",
+  "description": "Prevent secrets, API keys, and credentials from entering your git history",
+  "version": "1.0.0",
+  "publisher": "secretguard",
+  "icon": "images/icon.png",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other", "Linters"],
+  "keywords": ["security", "secrets", "git", "api-keys", "credentials", "gitguard"],
+  "activationEvents": ["workspaceContains:.git"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "secretguard.scanWorkspace",
+        "title": "SecretGuard: Scan Entire Workspace",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "secretguard.scanCurrentFile",
+        "title": "SecretGuard: Scan Current File"
+      },
+      {
+        "command": "secretguard.scanGitHistory",
+        "title": "SecretGuard: Scan Git History for Leaked Secrets"
+      },
+      {
+        "command": "secretguard.showFindings",
+        "title": "SecretGuard: Show All Findings"
+      },
+      {
+        "command": "secretguard.exportReport",
+        "title": "SecretGuard: Export Scan Report (HTML/JSON)"
+      },
+      {
+        "command": "secretguard.openConfig",
+        "title": "SecretGuard: Open Configuration"
+      },
+      {
+        "command": "secretguard.addToGitignore",
+        "title": "SecretGuard: Add Flagged Files to .gitignore"
+      },
+      {
+        "command": "secretguard.clearDiagnostics",
+        "title": "SecretGuard: Clear All Warnings"
+      },
+      {
+        "command": "secretguard.showRemediation",
+        "title": "SecretGuard: Show How to Rotate This Secret"
+      },
+      {
+        "command": "secretguard.toggleRealtime",
+        "title": "SecretGuard: Toggle Real-time Scanning"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "secretguard.scanWorkspace",
+        "key": "ctrl+shift+s ctrl+shift+s",
+        "mac": "cmd+shift+s cmd+shift+s"
+      }
+    ],
+    "views": {
+      "secretguard": [
+        {
+          "id": "secretguard.findingsView",
+          "name": "Findings",
+          "icon": "$(shield)"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "secretguard",
+          "title": "SecretGuard",
+          "icon": "$(shield)"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SecretGuard",
+      "properties": {
+        "secretguard.enableRealtime": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time scanning as you type (debounced at 800ms)"
+        },
+        "secretguard.debounceMs": {
+          "type": "number",
+          "default": 800,
+          "description": "Debounce delay in ms for real-time scanning"
+        },
+        "secretguard.entropyThreshold": {
+          "type": "number",
+          "default": 3.5,
+          "description": "Shannon entropy threshold (3.5 recommended, higher = fewer false positives)"
+        },
+        "secretguard.allowBypass": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow committing anyway after a warning (set false for strict teams)"
+        },
+        "secretguard.scanOnOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Scan all workspace files when extension activates"
+        },
+        "secretguard.maxFileSizeKb": {
+          "type": "number",
+          "default": 500,
+          "description": "Skip scanning files larger than this size (in KB) for performance"
+        },
+        "secretguard.excludePatterns": {
+          "type": "array",
+          "default": ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/*.min.js"],
+          "description": "Glob patterns to exclude from scanning"
+        }
+      }
+    },
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "secretguard.scanCurrentFile",
+          "group": "security"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "secretguard.showRemediation",
+          "group": "security"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "compile": "tsc --noEmit",
+    "test": "jest --passWithNoTests",
+    "test:unit": "jest"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.0",
+    "@vscode/test-electron": "^2.3.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "@types/jest": "^29.0.0"
+  }
+}

@@ -1,0 +1,17 @@
+.vscode/**
+.vscode-test/**
+out/**
+node_modules/**
+src/**
+test/**
+scripts/**
+docs/**
+webview/**
+secretguard.config.json
+tsconfig.json
+esbuild.js
+jest.config.json
+**/*.ts
+**/*.map
+**/*.test.js
+.gitignore
