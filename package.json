@@ -1,7 +1,7 @@
 {
-  "name": "secretguard-security",
-  "displayName": "SecretGuard",
-  "description": "Prevent secrets, API keys, and credentials from entering your git history",
+  "name": "secretguard-git-protect",
+  "displayName": "SecretGuard — Git Secret Scanner",
+  "description": "Real-time detection and blocking of API keys, credentials, and secrets before they enter your git history",
   "version": "1.0.0",
   "publisher": "secretguard",
   "icon": "images/icon.png",
