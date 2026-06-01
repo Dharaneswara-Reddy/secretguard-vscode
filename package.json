@@ -1,5 +1,5 @@
 {
-  "name": "secretguard",
+  "name": "secretguard-security",
   "displayName": "SecretGuard",
   "description": "Prevent secrets, API keys, and credentials from entering your git history",
   "version": "1.0.0",
