@@ -8,6 +8,15 @@
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Other", "Linters"],
   "keywords": ["security", "secrets", "git", "api-keys", "credentials", "gitguard"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dharaneswara-Reddy/secretguard-vscode.git"
+  },
+  "homepage": "https://github.com/Dharaneswara-Reddy/secretguard-vscode#readme",
+  "bugs": {
+    "url": "https://github.com/Dharaneswara-Reddy/secretguard-vscode/issues"
+  },
+  "license": "MIT",
   "activationEvents": ["workspaceContains:.git"],
   "main": "./dist/extension.js",
   "contributes": {
