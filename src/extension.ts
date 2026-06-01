@@ -22,7 +22,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const statusBar = new StatusBarManager();
   const cache = new ScanCache();
   const hookManager = new HookManager();
-  const sidebar = new SidebarProvider(context, cache);
+  const sidebar = new SidebarProvider(context);
 
   // Install git hook (silently — only if .git exists)
   hookManager.install();
@@ -53,7 +53,7 @@ export function activate(context: vscode.ExtensionContext): void {
     cache.set(document.fileName, results, contentHash);
     diagnosticsManager.update(document.uri, results);
     statusBar.update(cache.getAll());
-    sidebar.refresh();
+    sidebar.setFindings(document.fileName, results);
   }, config.get<number>('debounceMs') ?? 800);
 
   context.subscriptions.push(
@@ -98,7 +98,7 @@ export function activate(context: vscode.ExtensionContext): void {
       cache.set(editor.document.fileName, results, hashString(text));
       diagnosticsManager.update(editor.document.uri, results);
       statusBar.update(cache.getAll());
-      sidebar.refresh();
+      sidebar.setFindings(editor.document.fileName, results);
 
       if (results.length === 0) {
         vscode.window.showInformationMessage('✅ SecretGuard: No secrets found in this file.');
@@ -162,7 +162,7 @@ export function activate(context: vscode.ExtensionContext): void {
       diagnosticsManager.clearAll();
       cache.clear();
       statusBar.reset();
-      sidebar.refresh();
+      sidebar.clearAll();
       vscode.window.showInformationMessage('SecretGuard: All warnings cleared.');
     })
   );
@@ -288,9 +288,11 @@ async function scanWorkspace(
           if (results.length > 0) {
             diagnosticsManager.update(files[i], results);
             cache.set(doc.fileName, results, contentHash);
+            sidebar.setFindings(doc.fileName, results);
             totalFindings += results.length;
           } else {
             cache.set(doc.fileName, [], contentHash);
+            sidebar.setFindings(doc.fileName, []); // clear if previously had findings
           }
         } catch {
           // Binary file or unreadable — skip
@@ -300,7 +302,7 @@ async function scanWorkspace(
   );
 
   statusBar.update(cache.getAll());
-  sidebar.refresh();
+  // sidebar is already updated per-file inside the loop above
 
   if (totalFindings === 0) {
     vscode.window.showInformationMessage(

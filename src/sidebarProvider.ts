@@ -4,7 +4,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ScanResult } from './scanner';
-import { ScanCache } from './cache';
 
 // ─── Tree Item Classes ────────────────────────────────────────────────────────
 
@@ -15,7 +14,7 @@ class FileItem extends vscode.TreeItem {
   ) {
     super(
       path.basename(filePath),
-      vscode.TreeItemCollapsibleState.Collapsed
+      vscode.TreeItemCollapsibleState.Expanded
     );
 
     const errors = findings.filter(f => f.severity === 'error').length;
@@ -77,10 +76,33 @@ export class SidebarProvider
   >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  constructor(
-    private readonly context: vscode.ExtensionContext,
-    private readonly cache: ScanCache
-  ) {}
+  // ← own findings store, NOT shared with cache
+  private readonly findings = new Map<string, ScanResult[]>();
+
+  constructor(private readonly context: vscode.ExtensionContext) {}
+
+  /** Called after every scan — update findings for a file and refresh. */
+  setFindings(filePath: string, results: ScanResult[]): void {
+    if (results.length > 0) {
+      this.findings.set(filePath, results);
+    } else {
+      this.findings.delete(filePath); // remove file from view when clean
+    }
+    this._onDidChangeTreeData.fire(undefined);
+  }
+
+  /** Clear all findings (e.g. after "Clear All Warnings"). */
+  clearAll(): void {
+    this.findings.clear();
+    this._onDidChangeTreeData.fire(undefined);
+  }
+
+  /** Get total count of all findings. */
+  get totalCount(): number {
+    let n = 0;
+    for (const r of this.findings.values()) n += r.length;
+    return n;
+  }
 
   refresh(): void {
     this._onDidChangeTreeData.fire(undefined);
@@ -92,16 +114,12 @@ export class SidebarProvider
 
   getChildren(element?: FileItem | FindingItem): (FileItem | FindingItem)[] {
     if (!element) {
-      // Root: show all files with findings
-      const byFile = this.cache.getAllByFile();
-      if (byFile.size === 0) {
-        // Show a placeholder
-        const emptyItem = new vscode.TreeItem('No findings — workspace is clean ✓');
-        emptyItem.iconPath = new vscode.ThemeIcon('check');
+      // Root: show all files that have findings
+      if (this.findings.size === 0) {
         return [];
       }
 
-      return Array.from(byFile.entries())
+      return Array.from(this.findings.entries())
         .map(([filePath, results]) => new FileItem(filePath, results))
         .sort((a, b) => {
           const aErrors = a.findings.filter(f => f.severity === 'error').length;
